@@ -1,0 +1,2823 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AR-5RM Programmer</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#08101c;
+  color:#edf4ff;
+  font-family:system-ui,-apple-system,Segoe UI,sans-serif
+}
+header{
+  padding:18px;
+  background:#0d1727;
+  border-bottom:1px solid #263752
+}
+h1{margin:0;font-size:21px}
+small{color:#91a3bd}
+main{max-width:1450px;margin:auto;padding:15px}
+.panel{
+  background:#101b2d;
+  border:1px solid #293b59;
+  border-radius:8px;
+  padding:12px;
+  margin-bottom:10px
+}
+.toolbar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:10px
+}
+button{
+  color:#fff;
+  background:#172943;
+  border:1px solid #355071;
+  border-radius:6px;
+  padding:9px 13px;
+  cursor:pointer
+}
+button:hover{border-color:#32aaf2}
+button:disabled{opacity:.4;cursor:not-allowed}
+.primary{
+  background:#096ca5;
+  border-color:#28a8ed
+}
+.danger{
+  background:#6c2331;
+  border-color:#ad4c5e
+}
+.status{
+  padding:11px;
+  border:1px solid #293b59;
+  background:#101b2d;
+  border-radius:7px;
+  margin-bottom:10px
+}
+.ok{color:#3ee081}
+.warn{color:#efc35a}
+.err{color:#ff687a}
+.notice{
+  line-height:1.55;
+  color:#c2cede
+}
+code{
+  background:#07101c;
+  padding:2px 5px;
+  border-radius:4px
+}
+#log{
+  background:#050a11;
+  border-radius:6px;
+  min-height:230px;
+  max-height:400px;
+  overflow:auto;
+  padding:10px;
+  white-space:pre-wrap;
+  font:12px ui-monospace,SFMono-Regular,Consolas,monospace
+}
+.progress{
+  height:5px;
+  background:#1c2a40;
+  margin-top:8px;
+  border-radius:5px;
+  overflow:hidden
+}
+#bar{
+  width:0%;
+  height:100%;
+  background:#19a0ea
+}
+.controls{
+  display:grid;
+  grid-template-columns:180px 180px 1fr;
+  gap:8px
+}
+input,select{
+  background:#091322;
+  color:#fff;
+  border:1px solid #30435f;
+  border-radius:5px;
+  padding:7px
+}
+.tablewrap{
+  overflow:auto;
+  max-height:60vh
+}
+table{
+  border-collapse:collapse;
+  min-width:1100px;
+  width:100%
+}
+th,td{
+  padding:5px 6px;
+  border-bottom:1px solid #22324b;
+  white-space:nowrap
+}
+th{
+  position:sticky;
+  top:0;
+  background:#182840
+}
+tr:hover{background:#16253b}
+.empty{opacity:.5}
+.freq{width:110px}
+.name{width:125px}
+.tone{width:100px}
+@media(max-width:800px){
+  .controls{grid-template-columns:1fr}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Baofeng AR-5RM Programmer</h1>
+  <small>Web Serial • AR-5RM / BF5RM protocol</small>
+</header>
+
+<main>
+
+<div class="panel notice">
+
+  <b>Correct radio startup sequence:</b>
+
+  <ol>
+    <li>Turn the radio <b>OFF</b>.</li>
+    <li>Connect the programming cable to the radio.</li>
+    <li>Connect the USB cable to the computer.</li>
+    <li>Click <b>Connect Cable</b>.</li>
+    <li>Turn the radio <b>ON</b>.</li>
+    <li>Click <b>Detect AR-5RM</b>.</li>
+  </ol>
+
+  The USB port being open does <b>not</b> mean the radio is detected.
+  Detection requires the radio to answer
+  <code>PROGRAMBFNORMALU</code> with <code>06</code>.
+
+</div>
+
+<div class="toolbar">
+
+<button id="connect" class="primary">
+Connect Cable
+</button>
+
+<button id="detect" disabled>
+Detect AR-5RM
+</button>
+
+<button id="raw" disabled>
+Raw Diagnostic
+</button>
+
+<button id="read" disabled>
+Read Radio
+</button>
+
+<button id="write" disabled>
+Write Radio
+</button>
+
+<button id="save" disabled>
+Save IMG
+</button>
+
+<button id="load">
+Load IMG
+</button>
+
+<button id="export" disabled>
+Export CSV
+</button>
+
+<button id="import">
+Import CSV
+</button>
+
+<input id="imgfile"
+       type="file"
+       accept=".img,.bin"
+       hidden>
+
+<input id="csvfile"
+       type="file"
+       accept=".csv"
+       hidden>
+
+</div>
+
+<div id="status" class="status">
+No serial port open.
+<div class="progress">
+<div id="bar"></div>
+</div>
+</div>
+
+<div class="panel">
+
+<div class="controls">
+
+<input id="search"
+       placeholder="Search channels">
+
+<select id="filter">
+<option value="all">All channels</option>
+<option value="used">Programmed</option>
+<option value="empty">Empty</option>
+</select>
+
+<input id="jump"
+       type="number"
+       min="1"
+       max="1000"
+       placeholder="Channel number">
+
+</div>
+
+</div>
+
+<div class="panel">
+
+<div class="tablewrap">
+
+<table>
+
+<thead>
+<tr>
+<th>CH</th>
+<th>RX MHz</th>
+<th>Duplex</th>
+<th>Offset MHz</th>
+<th>Name</th>
+<th>Mode</th>
+<th>Power</th>
+<th>Tone</th>
+<th>Tone value</th>
+<th>Scan</th>
+</tr>
+</thead>
+
+<tbody id="channels"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<div class="panel">
+
+<b>Serial / protocol log</b>
+
+<pre id="log"></pre>
+
+</div>
+
+</main>
+
+<script>
+"use strict";
+
+/*
+====================================================================
+ AR-5RM / BF5RM
+====================================================================
+
+Based on current CHIRP baofeng_uv17Pro.py:
+
+  BAUD_RATE       115200
+  DATA            8
+  PARITY          N
+  STOPBITS        1
+  RTS             true
+  DTR             true
+
+  IDENT:
+      PROGRAMBFNORMALU
+
+  FINGERPRINT:
+      06
+
+  MAGIC:
+      46 -> 16 bytes
+      4D -> 15 bytes
+      SEND!... -> 1 byte
+
+  MEMORY:
+      0000 / 8040
+      9000 / 0040
+      A000 / 02C0
+      D000 / 0040
+
+  TOTAL:
+      8380 bytes
+
+  BLOCK:
+      40 bytes
+
+  CHANNELS:
+      1000
+
+  ENCRYPTION:
+      symbol index 1 = "CO 7"
+
+IMPORTANT:
+The first goal is getting the 06 response.
+Nothing in the memory editor matters until that works.
+====================================================================
+*/
+
+
+const BAUD = 115200;
+const BLOCK = 0x40;
+const IMAGE_SIZE = 0x8380;
+
+const IDENT =
+  new TextEncoder().encode(
+    "PROGRAMBFNORMALU"
+  );
+
+const MAGIC46 =
+  new Uint8Array([0x46]);
+
+const MAGIC4D =
+  new Uint8Array([0x4d]);
+
+const MAGICSEND =
+  new Uint8Array([
+    0x53,0x45,0x4e,0x44,0x21,0x05,0x0d,0x01,
+    0x01,0x01,0x04,0x11,0x08,0x05,0x0d,0x0d,
+    0x01,0x11,0x0f,0x09,0x12,0x09,0x10,0x04,
+    0x00
+  ]);
+
+const KEY =
+  new Uint8Array([
+    0x43,0x4f,0x20,0x37
+  ]);
+
+const RANGES=[
+  {start:0x0000,size:0x8040},
+  {start:0x9000,size:0x0040},
+  {start:0xA000,size:0x02C0},
+  {start:0xD000,size:0x0040}
+];
+
+const BLOCKS =
+  RANGES.reduce(
+    (n,r)=>n+r.size/BLOCK,
+    0
+  );
+
+
+let port=null;
+let reader=null;
+let writer=null;
+
+let pump=false;
+let disconnected=false;
+
+let rxQueue=
+  new Uint8Array(0);
+
+let waiters=[];
+
+let detected=false;
+let image=null;
+let busy=false;
+
+
+/* ================================================================
+ DOM
+================================================================ */
+
+const $ =
+  id=>document.getElementById(id);
+
+function log(x){
+
+  const e=$("log");
+
+  e.textContent +=
+    x+"\n";
+
+  e.scrollTop=
+    e.scrollHeight;
+}
+
+function setStatus(x,cls=""){
+
+  const e=$("status");
+
+  e.className=
+    "status "+cls;
+
+  e.childNodes[0].textContent=
+    x+" ";
+}
+
+function setProgress(n,d){
+
+  const p=
+    d ? n/d*100 : 0;
+
+  $("bar").style.width=
+    p+"%";
+}
+
+function sleep(ms){
+
+  return new Promise(
+    r=>setTimeout(r,ms)
+  );
+}
+
+function hex(a){
+
+  return Array.from(a)
+    .map(
+      x=>x.toString(16)
+       .padStart(2,"0")
+    )
+    .join(" ");
+}
+
+function cat(a,b){
+
+  const x=
+    new Uint8Array(
+      a.length+b.length
+    );
+
+  x.set(a);
+  x.set(b,a.length);
+
+  return x;
+}
+
+
+/* ================================================================
+ RX PUMP
+================================================================ */
+
+async function startPump(){
+
+  if(pump || !reader)
+    return;
+
+  pump=true;
+  disconnected=false;
+
+  try{
+
+    while(reader){
+
+      const r=
+        await reader.read();
+
+      if(r.done){
+
+        disconnected=true;
+
+        failWaiters(
+          new Error(
+            "Serial device disconnected."
+          )
+        );
+
+        break;
+      }
+
+      if(
+        r.value &&
+        r.value.length
+      ){
+
+        rxQueue=
+          cat(
+            rxQueue,
+            r.value
+          );
+
+        serviceWaiters();
+      }
+    }
+
+  }catch(e){
+
+    disconnected=true;
+
+    failWaiters(e);
+
+    log(
+      "RX ERROR: "+
+      e.message
+    );
+
+  }finally{
+
+    pump=false;
+
+    detected=false;
+
+    $("detect").disabled=true;
+    $("raw").disabled=true;
+    $("read").disabled=true;
+    $("write").disabled=true;
+
+    if(port){
+
+      setStatus(
+        "Serial device disconnected.",
+        "err"
+      );
+    }
+  }
+}
+
+
+function serviceWaiters(){
+
+  while(
+    waiters.length &&
+    rxQueue.length>=
+      waiters[0].n
+  ){
+
+    const w=
+      waiters.shift();
+
+    const data=
+      rxQueue.slice(
+        0,
+        w.n
+      );
+
+    rxQueue=
+      rxQueue.slice(
+        w.n
+      );
+
+    clearTimeout(w.timer);
+
+    w.resolve(data);
+  }
+}
+
+
+function failWaiters(e){
+
+  const list=
+    waiters.splice(
+      0,
+      waiters.length
+    );
+
+  for(const w of list){
+
+    clearTimeout(w.timer);
+    w.reject(e);
+  }
+}
+
+
+function flush(){
+
+  rxQueue=
+    new Uint8Array(0);
+}
+
+
+function readExact(
+  n,
+  timeout=3000
+){
+
+  if(
+    rxQueue.length>=n
+  ){
+
+    const d=
+      rxQueue.slice(
+        0,
+        n
+      );
+
+    rxQueue=
+      rxQueue.slice(n);
+
+    return Promise.resolve(d);
+  }
+
+  return new Promise(
+    (resolve,reject)=>{
+
+      const w={
+        n,
+        resolve,
+        reject,
+        timer:null
+      };
+
+      w.timer=
+        setTimeout(
+          ()=>{
+
+            const i=
+              waiters.indexOf(w);
+
+            if(i>=0)
+              waiters.splice(i,1);
+
+            reject(
+              new Error(
+                "Timeout waiting for "+
+                n+
+                " byte(s); received "+
+                rxQueue.length
+              )
+            );
+
+          },
+          timeout
+        );
+
+      waiters.push(w);
+    }
+  );
+}
+
+
+/* ================================================================
+ SERIAL
+================================================================ */
+
+async function connect(){
+
+  if(!navigator.serial){
+
+    throw new Error(
+      "Web Serial is unavailable. " +
+      "Use Chrome or Edge on a supported desktop OS."
+    );
+  }
+
+  const p=
+    await navigator.serial.requestPort();
+
+  await close(false);
+
+  log("");
+  log(
+    "=== OPEN SERIAL ==="
+  );
+
+  const info=
+    p.getInfo();
+
+  if(info.usbVendorId !== undefined)
+    log(
+      "USB VID: 0x"+
+      info.usbVendorId
+       .toString(16)
+       .padStart(4,"0")
+    );
+
+  if(info.usbProductId !== undefined)
+    log(
+      "USB PID: 0x"+
+      info.usbProductId
+       .toString(16)
+       .padStart(4,"0")
+    );
+
+  await p.open({
+    baudRate:BAUD,
+    dataBits:8,
+    stopBits:1,
+    parity:"none",
+    bufferSize:8192,
+    flowControl:"none"
+  });
+
+  port=p;
+
+  rxQueue=
+    new Uint8Array(0);
+
+  /*
+    CHIRP debug logs show:
+       rts=True
+       dtr=True
+       rtscts=False
+       dsrdtr=False
+  */
+  try{
+
+    await port.setSignals({
+      requestToSend:true,
+      dataTerminalReady:true
+    });
+
+    log(
+      "RTS=TRUE"
+    );
+
+    log(
+      "DTR=TRUE"
+    );
+
+  }catch(e){
+
+    log(
+      "WARNING: setSignals failed: "+
+      e.message
+    );
+  }
+
+  reader=
+    port.readable.getReader();
+
+  writer=
+    port.writable.getWriter();
+
+  startPump();
+
+  $("connect").textContent=
+    "Disconnect Cable";
+
+  $("detect").disabled=false;
+  $("raw").disabled=false;
+
+  setStatus(
+    "USB serial port open. Radio NOT detected.",
+    "warn"
+  );
+
+  log(
+    "Serial opened:"
+  );
+
+  log(
+    "115200 8N1"
+  );
+
+  log(
+    "RTS/DTR asserted."
+  );
+
+  log(
+    "USB cable open != radio detected."
+  );
+}
+
+
+async function close(update=true){
+
+  detected=false;
+
+  $("detect").disabled=true;
+  $("raw").disabled=true;
+  $("read").disabled=true;
+  $("write").disabled=true;
+
+  failWaiters(
+    new Error(
+      "Serial connection closed."
+    )
+  );
+
+  flush();
+
+  try{
+
+    if(reader){
+
+      await reader.cancel();
+      reader.releaseLock();
+    }
+
+  }catch{}
+
+  reader=null;
+
+  try{
+
+    if(writer)
+      writer.releaseLock();
+
+  }catch{}
+
+  writer=null;
+
+  try{
+
+    if(port)
+      await port.close();
+
+  }catch{}
+
+  port=null;
+
+  if(update){
+
+    $("connect").textContent=
+      "Connect Cable";
+
+    setStatus(
+      "Disconnected."
+    );
+
+    log(
+      "SERIAL CLOSED."
+    );
+  }
+}
+
+
+/* ================================================================
+ RADIO IDENTIFICATION
+================================================================ */
+
+async function detectRadio(){
+
+  if(
+    !port ||
+    !writer ||
+    !reader
+  )
+    throw new Error(
+      "Connect the USB serial cable first."
+    );
+
+  detected=false;
+
+  $("read").disabled=true;
+  $("write").disabled=true;
+
+  flush();
+
+  setStatus(
+    "Waiting for AR-5RM response...",
+    "warn"
+  );
+
+  log("");
+  log(
+    "========================================"
+  );
+  log(
+    "AR-5RM IDENTIFICATION"
+  );
+  log(
+    "========================================"
+  );
+
+  /*
+    The current CHIRP prompt says:
+      1. Turn radio OFF
+      2. Connect cable
+      3. Turn radio ON
+      4. Download
+
+    We cannot turn the radio on through Web Serial.
+    The user must do that physically.
+  */
+
+  log(
+    "Radio should now be ON."
+  );
+
+  log(
+    "RTS=TRUE / DTR=TRUE"
+  );
+
+  /*
+    Give the USB-UART and radio time to settle.
+  */
+  await sleep(1000);
+
+  /*
+    Make sure input accumulated during startup
+    does not get mistaken for the response.
+  */
+  flush();
+
+  log(
+    "TX ASCII: PROGRAMBFNORMALU"
+  );
+
+  log(
+    "TX HEX: "+
+    hex(IDENT)
+  );
+
+  await writer.write(IDENT);
+
+  log(
+    "TX COMPLETE."
+  );
+
+  try{
+
+    const r=
+      await readExact(
+        1,
+        5000
+      );
+
+    log(
+      "RX HEX: "+
+      hex(r)
+    );
+
+    if(r[0]!==0x06){
+
+      log(
+        "UNEXPECTED RESPONSE."
+      );
+
+      throw new Error(
+        "Expected 06, received "+
+        hex(r)
+      );
+    }
+
+    detected=true;
+
+    setStatus(
+      "AR-5RM DETECTED.",
+      "ok"
+    );
+
+    $("read").disabled=false;
+    $("write").disabled=!image;
+
+    log(
+      "AR-5RM DETECTED."
+    );
+
+    /*
+      Only after the fingerprint succeeds do
+      we send the remaining CHIRP magic commands.
+    */
+    await sendMagics();
+
+    return true;
+
+  }catch(e){
+
+    detected=false;
+
+    $("read").disabled=true;
+    $("write").disabled=true;
+
+    setStatus(
+      "USB port open, but AR-5RM did not respond.",
+      "err"
+    );
+
+    log(
+      "NO RADIO RESPONSE: "+
+      e.message
+    );
+
+    throw e;
+  }
+}
+
+
+/* ================================================================
+ RAW DIAGNOSTIC
+================================================================ */
+
+async function rawDiagnostic(){
+
+  if(!port || !writer)
+    throw new Error(
+      "Connect the cable first."
+    );
+
+  detected=false;
+
+  $("read").disabled=true;
+  $("write").disabled=true;
+
+  flush();
+
+  log("");
+  log(
+    "========================================"
+  );
+  log(
+    "RAW SERIAL DIAGNOSTIC"
+  );
+  log(
+    "========================================"
+  );
+
+  log(
+    "Protocol settings:"
+  );
+
+  log(
+    "baud=115200"
+  );
+
+  log(
+    "dataBits=8"
+  );
+
+  log(
+    "parity=none"
+  );
+
+  log(
+    "stopBits=1"
+  );
+
+  log(
+    "flowControl=none"
+  );
+
+  try{
+
+    await port.setSignals({
+      requestToSend:true,
+      dataTerminalReady:true
+    });
+
+    log(
+      "RTS=TRUE"
+    );
+
+    log(
+      "DTR=TRUE"
+    );
+
+  }catch(e){
+
+    log(
+      "SET SIGNALS ERROR: "+
+      e.message
+    );
+  }
+
+  log("");
+  log(
+    "IMPORTANT: radio must be physically ON."
+  );
+
+  log(
+    "Waiting 1 second..."
+  );
+
+  await sleep(1000);
+
+  flush();
+
+  /*
+    First test: entire command in one USB write.
+    This is what CHIRP's pyserial write effectively does.
+  */
+  log("");
+  log(
+    "TEST A: single write"
+  );
+
+  log(
+    "TX: "+
+    hex(IDENT)
+  );
+
+  await writer.write(IDENT);
+
+  const t1=
+    performance.now();
+
+  try{
+
+    const r=
+      await readExact(
+        1,
+        3000
+      );
+
+    log(
+      "RX after "+
+      Math.round(
+        performance.now()-t1
+      )+
+      " ms: "+
+      hex(r)
+    );
+
+  }catch{
+
+    log(
+      "RX: NONE"
+    );
+  }
+
+  /*
+    Test B:
+    reset the line state and retry.
+  */
+  flush();
+
+  log("");
+  log(
+    "TEST B: RTS/DTR toggle"
+  );
+
+  try{
+
+    await port.setSignals({
+      requestToSend:false,
+      dataTerminalReady:false
+    });
+
+    log(
+      "RTS=FALSE DTR=FALSE"
+    );
+
+    await sleep(250);
+
+    await port.setSignals({
+      requestToSend:true,
+      dataTerminalReady:true
+    });
+
+    log(
+      "RTS=TRUE DTR=TRUE"
+    );
+
+    await sleep(1000);
+
+  }catch(e){
+
+    log(
+      "SIGNAL TOGGLE ERROR: "+
+      e.message
+    );
+  }
+
+  log(
+    "TX: "+
+    hex(IDENT)
+  );
+
+  await writer.write(IDENT);
+
+  try{
+
+    const r=
+      await readExact(
+        1,
+        3000
+      );
+
+    log(
+      "RX: "+
+      hex(r)
+    );
+
+  }catch{
+
+    log(
+      "RX: NONE"
+    );
+  }
+
+  /*
+    Test C:
+    transmit byte-by-byte.
+
+    This is diagnostic only. CHIRP does not
+    require this mode.
+  */
+  flush();
+
+  log("");
+  log(
+    "TEST C: byte-at-a-time diagnostic"
+  );
+
+  for(const b of IDENT){
+
+    await writer.write(
+      new Uint8Array([b])
+    );
+
+    await sleep(5);
+  }
+
+  log(
+    "TX COMPLETE."
+  );
+
+  try{
+
+    const r=
+      await readExact(
+        1,
+        3000
+      );
+
+    log(
+      "RX: "+
+      hex(r)
+    );
+
+  }catch{
+
+    log(
+      "RX: NONE"
+    );
+  }
+
+  log("");
+  log(
+    "RAW DIAGNOSTIC COMPLETE."
+  );
+
+  setStatus(
+    "Raw diagnostic complete.",
+    "warn"
+  );
+}
+
+
+/* ================================================================
+ MAGIC
+================================================================ */
+
+async function sendMagics(){
+
+  const list=[
+    [MAGIC46,16,"46"],
+    [MAGIC4D,15,"4D"],
+    [MAGICSEND,1,"SEND"]
+  ];
+
+  for(const [cmd,n,label] of list){
+
+    log(
+      "MAGIC "+
+      label+
+      " TX: "+
+      hex(cmd)
+    );
+
+    await writer.write(cmd);
+
+    const r=
+      await readExact(
+        n,
+        3000
+      );
+
+    log(
+      "MAGIC "+
+      label+
+      " RX: "+
+      hex(r)
+    );
+  }
+
+  log(
+    "PROGRAM MODE INITIALIZED."
+  );
+}
+
+
+/* ================================================================
+ CRYPTO
+================================================================ */
+
+function crypt(data){
+
+  const out=
+    new Uint8Array(data);
+
+  for(
+    let i=0;
+    i<out.length;
+    i++
+  ){
+
+    const k=
+      KEY[i%4];
+
+    const v=
+      out[i];
+
+    const enc=
+      k!==0x20 &&
+      v!==0x00 &&
+      v!==0xff &&
+      v!==k &&
+      v!==(k^0xff);
+
+    if(enc)
+      out[i]=v^k;
+  }
+
+  return out;
+}
+
+
+/* ================================================================
+ FRAME
+================================================================ */
+
+function frame(
+  cmd,
+  addr,
+  length,
+  data
+){
+
+  const h=
+    new Uint8Array([
+      cmd,
+      (addr>>8)&255,
+      addr&255,
+      length
+    ]);
+
+  return data
+    ? cat(h,data)
+    : h;
+}
+
+
+/* ================================================================
+ READ
+================================================================ */
+
+async function readBlock(addr){
+
+  await writer.write(
+    frame(
+      0x52,
+      addr,
+      BLOCK
+    )
+  );
+
+  const r=
+    await readExact(
+      BLOCK+4,
+      4000
+    );
+
+  /*
+    CHIRP strips the four-byte response header.
+  */
+  return crypt(
+    r.slice(4)
+  );
+}
+
+
+async function readRadio(){
+
+  if(!detected)
+    throw new Error(
+      "AR-5RM has not been detected."
+    );
+
+  busy=true;
+
+  try{
+
+    /*
+      Re-identify before every clone operation,
+      just as CHIRP does.
+    */
+    await detectRadio();
+
+    image=
+      new Uint8Array(
+        IMAGE_SIZE
+      );
+
+    let pos=0;
+    let n=0;
+
+    log("");
+    log(
+      "=== READING MEMORY ==="
+    );
+
+    for(const r of RANGES){
+
+      for(
+        let a=r.start;
+        a<r.start+r.size;
+        a+=BLOCK
+      ){
+
+        setStatus(
+          "Reading 0x"+
+          a.toString(16)
+           .padStart(4,"0")+
+          " ("+
+          (n+1)+
+          "/"+
+          BLOCKS+
+          ")"
+        );
+
+        const d=
+          await readBlock(a);
+
+        image.set(
+          d,
+          pos
+        );
+
+        pos+=BLOCK;
+        n++;
+
+        setProgress(
+          n,
+          BLOCKS
+        );
+      }
+    }
+
+    if(pos!==IMAGE_SIZE)
+      throw new Error(
+        "Image length mismatch."
+      );
+
+    $("save").disabled=false;
+    $("export").disabled=false;
+    $("write").disabled=false;
+
+    render();
+
+    setStatus(
+      "READ COMPLETE — "+
+      IMAGE_SIZE+
+      " bytes.",
+      "ok"
+    );
+
+    log(
+      "READ COMPLETE."
+    );
+
+  }finally{
+
+    busy=false;
+  }
+}
+
+
+/* ================================================================
+ WRITE
+================================================================ */
+
+async function writeBlock(addr,data){
+
+  const enc=
+    crypt(data);
+
+  await writer.write(
+    frame(
+      0x57,
+      addr,
+      BLOCK,
+      enc
+    )
+  );
+
+  const ack=
+    await readExact(
+      1,
+      4000
+    );
+
+  if(
+    ack.length!==1 ||
+    ack[0]!==0x06
+  )
+    throw new Error(
+      "Bad write ACK at 0x"+
+      addr.toString(16)+
+      ": "+
+      hex(ack)
+    );
+}
+
+
+async function writeRadio(){
+
+  if(!detected)
+    throw new Error(
+      "AR-5RM has not been detected."
+    );
+
+  if(!image)
+    throw new Error(
+      "No image loaded."
+    );
+
+  if(!confirm(
+    "Write this image to the AR-5RM?\n\n"+
+    "Make sure you have an untouched backup."
+  ))
+    return;
+
+  busy=true;
+
+  try{
+
+    await detectRadio();
+
+    let pos=0;
+    let n=0;
+
+    log("");
+    log(
+      "=== WRITING MEMORY ==="
+    );
+
+    for(const r of RANGES){
+
+      for(
+        let a=r.start;
+        a<r.start+r.size;
+        a+=BLOCK
+      ){
+
+        setStatus(
+          "Writing 0x"+
+          a.toString(16)
+           .padStart(4,"0")+
+          " ("+
+          (n+1)+
+          "/"+
+          BLOCKS+
+          ")"
+        );
+
+        const d=
+          image.slice(
+            pos,
+            pos+BLOCK
+          );
+
+        await writeBlock(
+          a,
+          d
+        );
+
+        pos+=BLOCK;
+        n++;
+
+        setProgress(
+          n,
+          BLOCKS
+        );
+
+        await sleep(5);
+      }
+    }
+
+    setStatus(
+      "WRITE COMPLETE — power-cycle radio.",
+      "ok"
+    );
+
+    log(
+      "WRITE COMPLETE."
+    );
+
+  }finally{
+
+    busy=false;
+  }
+}
+
+
+/* ================================================================
+ BCD / CHANNEL DATA
+================================================================ */
+
+function bcdRead(a,o){
+
+  let n=0;
+
+  for(let i=3;i>=0;i--){
+
+    const b=
+      a[o+i];
+
+    const hi=
+      (b>>4)&15;
+
+    const lo=
+      b&15;
+
+    if(
+      hi>9 ||
+      lo>9
+    )
+      return null;
+
+    n=
+      n*100+
+      hi*10+
+      lo;
+  }
+
+  return n;
+}
+
+
+function bcdWrite(a,o,n){
+
+  n=Math.round(n);
+
+  for(let i=0;i<4;i++){
+
+    const lo=n%10;
+
+    n=Math.floor(n/10);
+
+    const hi=n%10;
+
+    n=Math.floor(n/10);
+
+    a[o+i]=
+      (hi<<4)|lo;
+  }
+}
+
+
+const DCS=[
+23,25,26,31,32,36,43,47,51,53,54,
+65,71,72,73,74,114,115,116,122,125,
+131,132,134,143,145,152,155,156,162,
+165,172,174,205,212,223,225,226,243,
+244,245,246,251,252,255,261,263,265,
+266,271,274,306,311,315,325,331,332,
+343,346,351,356,364,365,371,411,412,
+413,423,431,432,445,446,452,454,455,
+462,464,465,466,503,506,516,523,526,
+532,534,546,565,606,612,624,627,631,
+632,645,654,662,664,703,712,723,731,
+732,734,743,754
+].sort((a,b)=>a-b);
+
+
+function toneDecode(v){
+
+  if(
+    v===0 ||
+    v===0xffff
+  )
+    return ["",""];
+
+  if(v>=0x0258)
+    return [
+      "Tone",
+      (v/10).toFixed(1)
+    ];
+
+  if(v<=0x0258){
+
+    if(v>0x69){
+
+      const i=
+        v-0x6a;
+
+      if(i>=0 && i<DCS.length)
+        return [
+          "DCSR",
+          String(DCS[i])
+            .padStart(3,"0")
+        ];
+
+    }else{
+
+      const i=
+        v-1;
+
+      if(i>=0 && i<DCS.length)
+        return [
+          "DCSN",
+          String(DCS[i])
+            .padStart(3,"0")
+        ];
+    }
+  }
+
+  return ["",""];
+}
+
+
+function toneEncode(type,value){
+
+  if(
+    !type ||
+    !value
+  )
+    return 0;
+
+  if(type==="Tone"){
+
+    return Math.round(
+      parseFloat(value)*10
+    );
+  }
+
+  const code=
+    parseInt(value,10);
+
+  const i=
+    DCS.indexOf(code);
+
+  if(i<0)
+    return 0;
+
+  return type==="DCSR"
+    ? i+0x6a
+    : i+1;
+}
+
+
+function getChannel(n){
+
+  const o=
+    (n-1)*32;
+
+  const raw=
+    image.slice(
+      o,
+      o+32
+    );
+
+  if(
+    raw.length!==32 ||
+    raw[0]===0xff
+  ){
+
+    return {
+      number:n,
+      empty:true,
+      rx:"",
+      duplex:"",
+      offset:"",
+      name:"",
+      mode:"NFM",
+      power:"High",
+      toneType:"",
+      tone:"",
+      scan:true
+    };
+  }
+
+  const rf=
+    bcdRead(raw,0);
+
+  const tf=
+    bcdRead(raw,4);
+
+  if(rf===null)
+    return {
+      number:n,
+      empty:true,
+      rx:"",
+      duplex:"",
+      offset:"",
+      name:"",
+      mode:"NFM",
+      power:"High",
+      toneType:"",
+      tone:"",
+      scan:true
+    };
+
+  const rxHz=
+    rf*10;
+
+  let duplex="";
+  let offset="";
+
+  const txFF=
+    raw.slice(4,8)
+       .every(
+         x=>x===0xff
+       );
+
+  if(txFF){
+
+    duplex="off";
+
+  }else{
+
+    const txHz=
+      tf*10;
+
+    const d=
+      txHz-rxHz;
+
+    if(d>0){
+
+      duplex="+";
+
+      offset=
+        (d/1e6)
+        .toFixed(6);
+
+    }else if(d<0){
+
+      duplex="-";
+
+      offset=
+        (Math.abs(d)/1e6)
+        .toFixed(6);
+    }
+  }
+
+  const tone=
+    toneDecode(
+      raw[8] |
+      (raw[9]<<8)
+    );
+
+  let name="";
+
+  for(let i=0;i<12;i++){
+
+    const c=
+      raw[20+i];
+
+    if(
+      c===0xff ||
+      c===0
+    )
+      break;
+
+    if(
+      c>=32 &&
+      c<=126
+    )
+      name+=
+        String.fromCharCode(c);
+  }
+
+  /*
+    Current CHIRP structure:
+
+      byte 14:
+        lowpower = bits 6-7
+
+      byte 15:
+        wide = bit 6
+        scan = bit 3
+  */
+
+  const lowpower=
+    (raw[14]>>6)&3;
+
+  const power=
+    lowpower===2
+      ? "Low"
+      : "High";
+
+  const mode=
+    (raw[15]&0x40)
+      ? "FM"
+      : "NFM";
+
+  const scan=
+    !!(raw[15]&0x08);
+
+  return {
+    number:n,
+    empty:false,
+    rx:(rxHz/1e6)
+      .toFixed(6),
+    duplex,
+    offset,
+    name,
+    mode,
+    power,
+    toneType:tone[0],
+    tone:tone[1],
+    scan
+  };
+}
+
+
+function setChannel(c){
+
+  const o=
+    (c.number-1)*32;
+
+  if(c.empty){
+
+    image.fill(
+      0xff,
+      o,
+      o+32
+    );
+
+    return;
+  }
+
+  const raw=
+    image.slice(
+      o,
+      o+32
+    );
+
+  const rx=
+    parseFloat(c.rx);
+
+  if(!Number.isFinite(rx))
+    throw new Error(
+      "Invalid RX frequency."
+    );
+
+  /*
+    Stored frequency = Hz / 10
+    Therefore MHz * 100000.
+  */
+  bcdWrite(
+    raw,
+    0,
+    rx*100000
+  );
+
+  if(c.duplex==="off"){
+
+    raw.fill(
+      0xff,
+      4,
+      8
+    );
+
+  }else{
+
+    let tx=rx;
+
+    if(c.duplex==="+")
+      tx=
+        rx+
+        parseFloat(c.offset||0);
+
+    if(c.duplex==="-")
+      tx=
+        rx-
+        parseFloat(c.offset||0);
+
+    bcdWrite(
+      raw,
+      4,
+      tx*100000
+    );
+  }
+
+  const tv=
+    toneEncode(
+      c.toneType,
+      c.tone
+    );
+
+  raw[8]=
+    tv&255;
+
+  raw[9]=
+    (tv>>8)&255;
+
+  raw[10]=
+    tv&255;
+
+  raw[11]=
+    (tv>>8)&255;
+
+  /*
+    Power:
+      CHIRP TXPOWER_HIGH = 0
+      CHIRP TXPOWER_LOW  = 2
+
+    lowpower occupies bits 6-7.
+  */
+  raw[14]&=0x3f;
+
+  if(c.power==="Low")
+    raw[14]|=0x80;
+
+  /*
+    Wide:
+      FM = 1
+      NFM = 0
+  */
+  if(c.mode==="FM")
+    raw[15]|=0x40;
+  else
+    raw[15]&=~0x40;
+
+  /*
+    Scan:
+      scan=1 means included
+      scan=0 means skipped
+  */
+  if(c.scan)
+    raw[15]|=0x08;
+  else
+    raw[15]&=~0x08;
+
+  raw.fill(
+    0xff,
+    20,
+    32
+  );
+
+  const name=
+    new TextEncoder().encode(
+      String(c.name||"")
+      .slice(0,12)
+    );
+
+  raw.set(
+    name.slice(0,12),
+    20
+  );
+
+  image.set(
+    raw,
+    o
+  );
+}
+
+
+/* ================================================================
+ HTML
+================================================================ */
+
+function esc(x){
+
+  return String(x??"")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+
+
+/* ================================================================
+ RENDER
+================================================================ */
+
+function render(){
+
+  const tbody=
+    $("channels");
+
+  tbody.innerHTML="";
+
+  if(!image)
+    return;
+
+  const q=
+    $("search")
+    .value
+    .trim()
+    .toLowerCase();
+
+  const filter=
+    $("filter").value;
+
+  for(
+    let n=1;
+    n<=1000;
+    n++
+  ){
+
+    const c=
+      getChannel(n);
+
+    if(
+      filter==="used" &&
+      c.empty
+    )
+      continue;
+
+    if(
+      filter==="empty" &&
+      !c.empty
+    )
+      continue;
+
+    const text=
+      (
+        n+" "+
+        c.rx+" "+
+        c.name
+      ).toLowerCase();
+
+    if(
+      q &&
+      !text.includes(q)
+    )
+      continue;
+
+    const tr=
+      document.createElement("tr");
+
+    if(c.empty)
+      tr.className="empty";
+
+    tr.dataset.n=n;
+
+    let toneOptions="";
+
+    if(c.toneType==="Tone"){
+
+      const tones=[
+        67,69.3,71.9,74.4,77,79.7,
+        82.5,85.4,88.5,91.5,94.8,
+        97.4,100,103.5,107.2,110.9,
+        114.8,118.8,123,127.3,131.8,
+        136.5,141.3,146.2,151.4,156.7,
+        162.2,167.9,173.8,179.9,186.2,
+        192.8,203.5,210.7,218.1,225.7,
+        233.6,241.8,250.3
+      ];
+
+      toneOptions=
+        tones.map(
+          x=>
+          `<option value="${x}"
+           ${String(x)===String(c.tone)
+            ?"selected":""}>
+           ${x.toFixed(1)}
+           </option>`
+        ).join("");
+
+    }else{
+
+      toneOptions=
+        DCS.map(
+          x=>
+          `<option value="${x}"
+           ${String(x)===String(c.tone)
+            ?"selected":""}>
+           ${String(x).padStart(3,"0")}
+           </option>`
+        ).join("");
+    }
+
+    tr.innerHTML=`
+
+<td>${n}</td>
+
+<td>
+<input class="freq"
+ data-f="rx"
+ value="${esc(c.rx)}">
+</td>
+
+<td>
+<select data-f="duplex">
+<option value=""
+ ${c.duplex===""?"selected":""}>
+Same
+</option>
+<option value="+"
+ ${c.duplex==="+"?"selected":""}>
++
+</option>
+<option value="-"
+ ${c.duplex==="-"?"selected":""}>
+-
+</option>
+<option value="off"
+ ${c.duplex==="off"?"selected":""}>
+RX only
+</option>
+</select>
+</td>
+
+<td>
+<input class="freq"
+ data-f="offset"
+ value="${esc(c.offset)}">
+</td>
+
+<td>
+<input class="name"
+ maxlength="12"
+ data-f="name"
+ value="${esc(c.name)}">
+</td>
+
+<td>
+<select data-f="mode">
+<option value="NFM"
+ ${c.mode==="NFM"?"selected":""}>
+NFM
+</option>
+<option value="FM"
+ ${c.mode==="FM"?"selected":""}>
+FM
+</option>
+</select>
+</td>
+
+<td>
+<select data-f="power">
+<option value="High"
+ ${c.power==="High"?"selected":""}>
+High
+</option>
+<option value="Low"
+ ${c.power==="Low"?"selected":""}>
+Low
+</option>
+</select>
+</td>
+
+<td>
+<select data-f="toneType">
+<option value=""
+ ${c.toneType===""?"selected":""}>
+Off
+</option>
+<option value="Tone"
+ ${c.toneType==="Tone"?"selected":""}>
+CTCSS
+</option>
+<option value="DCSN"
+ ${c.toneType==="DCSN"?"selected":""}>
+DCS N
+</option>
+<option value="DCSR"
+ ${c.toneType==="DCSR"?"selected":""}>
+DCS R
+</option>
+</select>
+</td>
+
+<td>
+<select class="tone"
+ data-f="tone">
+${toneOptions}
+</select>
+</td>
+
+<td>
+<input type="checkbox"
+ data-f="scan"
+ ${c.scan?"checked":""}>
+</td>
+`;
+
+    tr.querySelectorAll(
+      "[data-f]"
+    ).forEach(
+      el=>{
+
+        el.addEventListener(
+          "change",
+          ()=>{
+
+            try{
+
+              const x=
+                getChannel(n);
+
+              const f=
+                el.dataset.f;
+
+              x[f]=
+                el.type==="checkbox"
+                ? el.checked
+                : el.value;
+
+              setChannel(x);
+
+              $("save").disabled=false;
+              $("export").disabled=false;
+
+            }catch(e){
+
+              alert(e.message);
+            }
+
+            render();
+          }
+        );
+      }
+    );
+
+    tbody.appendChild(tr);
+  }
+}
+
+
+/* ================================================================
+ FILES
+================================================================ */
+
+function download(
+  name,
+  data,
+  type
+){
+
+  const blob=
+    new Blob(
+      [data],
+      {type}
+    );
+
+  const url=
+    URL.createObjectURL(blob);
+
+  const a=
+    document.createElement("a");
+
+  a.href=url;
+  a.download=name;
+
+  document.body.appendChild(a);
+
+  a.click();
+
+  a.remove();
+
+  setTimeout(
+    ()=>URL.revokeObjectURL(url),
+    1000
+  );
+}
+
+
+function saveImage(){
+
+  if(!image)
+    return;
+
+  download(
+    "AR-5RM.img",
+    image,
+    "application/octet-stream"
+  );
+
+  log(
+    "IMG SAVED."
+  );
+}
+
+
+$("imgfile").onchange=
+  e=>{
+
+    const f=
+      e.target.files[0];
+
+    if(!f)
+      return;
+
+    const r=
+      new FileReader();
+
+    r.onload=()=>{
+
+      const d=
+        new Uint8Array(
+          r.result
+        );
+
+      if(d.length!==IMAGE_SIZE){
+
+        alert(
+          "Wrong image size.\n\n"+
+          "Expected "+
+          IMAGE_SIZE+
+          " bytes.\n"+
+          "Received "+
+          d.length+
+          " bytes."
+        );
+
+        return;
+      }
+
+      image=
+        new Uint8Array(d);
+
+      $("save").disabled=false;
+      $("export").disabled=false;
+      $("write").disabled=!detected;
+
+      render();
+
+      setStatus(
+        "IMG loaded.",
+        "ok"
+      );
+
+      log(
+        "Loaded "+
+        f.name
+      );
+    };
+
+    r.readAsArrayBuffer(f);
+
+    e.target.value="";
+  };
+
+
+function csvEscape(x){
+
+  const s=
+    String(x??"");
+
+  if(
+    /[",\r\n]/.test(s)
+  )
+    return '"'+
+      s.replace(/"/g,'""')+
+      '"';
+
+  return s;
+}
+
+
+function exportCSV(){
+
+  if(!image)
+    return;
+
+  const lines=[
+    "Channel,RX,Duplex,Offset,Name,Mode,Power,ToneType,Tone,Scan"
+  ];
+
+  for(let n=1;n<=1000;n++){
+
+    const c=
+      getChannel(n);
+
+    lines.push(
+      [
+        n,
+        c.rx,
+        c.duplex,
+        c.offset,
+        c.name,
+        c.mode,
+        c.power,
+        c.toneType,
+        c.tone,
+        c.scan?1:0
+      ]
+      .map(csvEscape)
+      .join(",")
+    );
+  }
+
+  download(
+    "AR-5RM.csv",
+    new TextEncoder().encode(
+      lines.join("\r\n")
+    ),
+    "text/csv"
+  );
+}
+
+
+/* ================================================================
+ EVENTS
+================================================================ */
+
+$("connect").onclick=
+  async()=>{
+
+    try{
+
+      if(port)
+        await close();
+      else
+        await connect();
+
+    }catch(e){
+
+      setStatus(
+        "Serial connection failed.",
+        "err"
+      );
+
+      log(
+        "ERROR: "+
+        e.message
+      );
+
+      alert(e.message);
+    }
+  };
+
+
+$("detect").onclick=
+  async()=>{
+
+    try{
+
+      await detectRadio();
+
+    }catch(e){
+
+      log(
+        "DETECT FAILED."
+      );
+    }
+  };
+
+
+$("raw").onclick=
+  async()=>{
+
+    try{
+
+      await rawDiagnostic();
+
+    }catch(e){
+
+      log(
+        "RAW TEST ERROR: "+
+        e.message
+      );
+
+      alert(e.message);
+    }
+  };
+
+
+$("read").onclick=
+  async()=>{
+
+    try{
+
+      await readRadio();
+
+    }catch(e){
+
+      setStatus(
+        "READ FAILED.",
+        "err"
+      );
+
+      log(
+        "READ ERROR: "+
+        e.message
+      );
+
+      alert(
+        "Read failed:\n\n"+
+        e.message
+      );
+    }
+  };
+
+
+$("write").onclick=
+  async()=>{
+
+    try{
+
+      await writeRadio();
+
+    }catch(e){
+
+      setStatus(
+        "WRITE FAILED.",
+        "err"
+      );
+
+      log(
+        "WRITE ERROR: "+
+        e.message
+      );
+
+      alert(
+        "Write failed:\n\n"+
+        e.message
+      );
+    }
+  };
+
+
+$("save").onclick=
+  saveImage;
+
+
+$("load").onclick=
+  ()=>$("imgfile").click();
+
+
+$("export").onclick=
+  exportCSV;
+
+
+$("import").onclick=
+  ()=>$("csvfile").click();
+
+
+$("csvfile").onchange=
+  e=>{
+
+    const f=
+      e.target.files[0];
+
+    if(!f)
+      return;
+
+    const r=
+      new FileReader();
+
+    r.onload=()=>{
+
+      if(!image){
+
+        image=
+          new Uint8Array(
+            IMAGE_SIZE
+          );
+
+        image.fill(0xff);
+      }
+
+      const rows=
+        r.result
+          .split(/\r?\n/)
+          .filter(Boolean);
+
+      for(
+        let i=1;
+        i<rows.length;
+        i++
+      ){
+
+        const x=
+          rows[i].split(",");
+
+        const n=
+          parseInt(x[0],10);
+
+        if(
+          !Number.isInteger(n) ||
+          n<1 ||
+          n>1000
+        )
+          continue;
+
+        try{
+
+          setChannel({
+            number:n,
+            empty:!x[1],
+            rx:x[1]||"",
+            duplex:x[2]||"",
+            offset:x[3]||"",
+            name:x[4]||"",
+            mode:x[5]||"NFM",
+            power:x[6]||"High",
+            toneType:x[7]||"",
+            tone:x[8]||"",
+            scan:x[9]!=="0"
+          });
+
+        }catch(e){
+
+          console.warn(e);
+        }
+      }
+
+      $("save").disabled=false;
+      $("export").disabled=false;
+      $("write").disabled=!detected;
+
+      render();
+
+      setStatus(
+        "CSV imported.",
+        "ok"
+      );
+    };
+
+    r.readAsText(f);
+
+    e.target.value="";
+  };
+
+
+$("search").oninput=
+  render;
+
+
+$("filter").onchange=
+  render;
+
+
+$("jump").onchange=
+  ()=>{
+
+    const n=
+      parseInt(
+        $("jump").value,
+        10
+      );
+
+    const row=
+      document.querySelector(
+        `tr[data-n="${n}"]`
+      );
+
+    if(row)
+      row.scrollIntoView({
+        behavior:"smooth",
+        block:"center"
+      });
+  };
+
+
+/* ================================================================
+ USB DISCONNECT
+================================================================ */
+
+if(navigator.serial){
+
+  navigator.serial.addEventListener(
+    "disconnect",
+    async e=>{
+
+      if(
+        port &&
+        e.target===port
+      ){
+
+        log("");
+        log(
+          "USB DEVICE DISCONNECTED."
+        );
+
+        await close();
+      }
+    }
+  );
+}
+
+
+/* ================================================================
+ STARTUP
+================================================================ */
+
+log(
+  "AR-5RM programmer ready."
+);
+
+log(
+  "Current CHIRP protocol:"
+);
+
+log(
+  "115200 8N1 / RTS=TRUE / DTR=TRUE"
+);
+
+log(
+  "IDENT = PROGRAMBFNORMALU"
+);
+
+log(
+  "Fingerprint = 06"
+);
+
+log(
+  "Image = 0x8380 / 33664 bytes"
+);
+
+log(
+  "IMPORTANT: USB open is not radio detection."
+);
+
+</script>
+
+</body>
+</html>
